@@ -34,6 +34,7 @@ extern const intptr_t kPlatformStrongDillSize;
 #include "flutter/shell/common/switches.h"
 #include "flutter/shell/platform/embedder/embedder.h"
 #include "flutter/shell/platform/embedder/embedder_engine.h"
+#include "flutter/shell/platform/embedder/embedder_platform_message_response.h"
 #include "flutter/shell/platform/embedder/embedder_safe_access.h"
 #include "flutter/shell/platform/embedder/embedder_task_runner.h"
 #include "flutter/shell/platform/embedder/embedder_thread_host.h"
@@ -340,6 +341,7 @@ FlutterEngineResult FlutterEngineRun(size_t version,
   }
 
   if (!IsRendererValid(config)) {
+    FML_LOG(WARNING) << "Invalid renderer config.";
     return LOG_EMBEDDER_ERROR(kInvalidArguments);
   }
 
@@ -629,13 +631,6 @@ FlutterEngineResult FlutterEngineRun(size_t version,
     }
   }
 
-  run_configuration.AddAssetResolver(
-      std::make_unique<flutter::DirectoryAssetBundle>(
-          fml::Duplicate(settings.assets_dir)));
-
-  run_configuration.AddAssetResolver(
-      std::make_unique<flutter::DirectoryAssetBundle>(fml::OpenDirectory(
-          settings.assets_path.c_str(), false, fml::FilePermission::kRead)));
   if (!run_configuration.IsValid()) {
     return LOG_EMBEDDER_ERROR(kInvalidArguments);
   }
@@ -812,22 +807,81 @@ FlutterEngineResult FlutterEngineSendPlatformMessage(
     return LOG_EMBEDDER_ERROR(kInvalidArguments);
   }
 
-  if (SAFE_ACCESS(flutter_message, channel, nullptr) == nullptr ||
-      SAFE_ACCESS(flutter_message, message, nullptr) == nullptr) {
+  if (SAFE_ACCESS(flutter_message, channel, nullptr) == nullptr) {
     return LOG_EMBEDDER_ERROR(kInvalidArguments);
   }
 
-  auto message = fml::MakeRefCounted<flutter::PlatformMessage>(
-      flutter_message->channel,
-      std::vector<uint8_t>(
-          flutter_message->message,
-          flutter_message->message + flutter_message->message_size),
-      nullptr);
+  size_t message_size = SAFE_ACCESS(flutter_message, message_size, 0);
+  const uint8_t* message_data = SAFE_ACCESS(flutter_message, message, nullptr);
+
+  if (message_size != 0 && message_data == nullptr) {
+    return LOG_EMBEDDER_ERROR(kInvalidArguments);
+  }
+
+  const FlutterPlatformMessageResponseHandle* response_handle =
+      SAFE_ACCESS(flutter_message, response_handle, nullptr);
+
+  fml::RefPtr<flutter::PlatformMessageResponse> response;
+  if (response_handle && response_handle->message) {
+    response = response_handle->message->response();
+  }
+
+  fml::RefPtr<flutter::PlatformMessage> message;
+  if (message_size == 0) {
+    message = fml::MakeRefCounted<flutter::PlatformMessage>(
+        flutter_message->channel, response);
+  } else {
+    message = fml::MakeRefCounted<flutter::PlatformMessage>(
+        flutter_message->channel,
+        std::vector<uint8_t>(message_data, message_data + message_size),
+        response);
+  }
 
   return reinterpret_cast<flutter::EmbedderEngine*>(engine)
                  ->SendPlatformMessage(std::move(message))
              ? kSuccess
              : LOG_EMBEDDER_ERROR(kInvalidArguments);
+}
+
+FlutterEngineResult FlutterPlatformMessageCreateResponseHandle(
+    FlutterEngine engine,
+    FlutterDataCallback data_callback,
+    void* user_data,
+    FlutterPlatformMessageResponseHandle** response_out) {
+  if (engine == nullptr || data_callback == nullptr ||
+      response_out == nullptr) {
+    return LOG_EMBEDDER_ERROR(kInvalidArguments);
+  }
+
+  flutter::EmbedderPlatformMessageResponse::Callback response_callback =
+      [user_data, data_callback](const uint8_t* data, size_t size) {
+        data_callback(data, size, user_data);
+      };
+
+  auto platform_task_runner = reinterpret_cast<flutter::EmbedderEngine*>(engine)
+                                  ->GetTaskRunners()
+                                  .GetPlatformTaskRunner();
+
+  auto handle = new FlutterPlatformMessageResponseHandle();
+
+  handle->message = fml::MakeRefCounted<flutter::PlatformMessage>(
+      "",  // The channel is empty and unused as the response handle is going to
+           // referenced directly in the |FlutterEngineSendPlatformMessage| with
+           // the container message discarded.
+      fml::MakeRefCounted<flutter::EmbedderPlatformMessageResponse>(
+          std::move(platform_task_runner), response_callback));
+  *response_out = handle;
+  return kSuccess;
+}
+
+FlutterEngineResult FlutterPlatformMessageReleaseResponseHandle(
+    FlutterEngine engine,
+    FlutterPlatformMessageResponseHandle* response) {
+  if (engine == nullptr || response == nullptr) {
+    return LOG_EMBEDDER_ERROR(kInvalidArguments);
+  }
+  delete response;
+  return kSuccess;
 }
 
 FlutterEngineResult FlutterEngineSendPlatformMessageResponse(
@@ -841,11 +895,13 @@ FlutterEngineResult FlutterEngineSendPlatformMessageResponse(
 
   auto response = handle->message->response();
 
-  if (data_length == 0) {
-    response->CompleteEmpty();
-  } else {
-    response->Complete(std::make_unique<fml::DataMapping>(
-        std::vector<uint8_t>({data, data + data_length})));
+  if (response) {
+    if (data_length == 0) {
+      response->CompleteEmpty();
+    } else {
+      response->Complete(std::make_unique<fml::DataMapping>(
+          std::vector<uint8_t>({data, data + data_length})));
+    }
   }
 
   delete handle;
@@ -951,7 +1007,7 @@ FlutterEngineResult FlutterEngineOnVsync(FlutterEngine engine,
     return LOG_EMBEDDER_ERROR(kInvalidArguments);
   }
 
-  FML_TRACE_EVENT0("flutter", "FlutterEngineOnVsync");
+  TRACE_EVENT0("flutter", "FlutterEngineOnVsync");
 
   auto start_time = fml::TimePoint::FromEpochDelta(
       fml::TimeDelta::FromNanoseconds(frame_start_time_nanos));

@@ -25,34 +25,34 @@ class ScopedFrame final : public flutter::CompositorContext::ScopedFrame {
  private:
   SessionConnection& session_connection_;
 
-  bool Raster(flutter::LayerTree& layer_tree,
-              bool ignore_raster_cache) override {
+  flutter::RasterStatus Raster(flutter::LayerTree& layer_tree,
+                               bool ignore_raster_cache) override {
     if (!session_connection_.has_metrics()) {
-      return true;
+      return flutter::RasterStatus::kSuccess;
     }
 
     {
       // Preroll the Flutter layer tree. This allows Flutter to perform
       // pre-paint optimizations.
-      FML_TRACE_EVENT0("flutter", "Preroll");
+      TRACE_EVENT0("flutter", "Preroll");
       layer_tree.Preroll(*this, true /* ignore raster cache */);
     }
 
     {
       // Traverse the Flutter layer tree so that the necessary session ops to
       // represent the frame are enqueued in the underlying session.
-      FML_TRACE_EVENT0("flutter", "UpdateScene");
+      TRACE_EVENT0("flutter", "UpdateScene");
       layer_tree.UpdateScene(session_connection_.scene_update_context(),
                              session_connection_.root_node());
     }
 
     {
       // Flush all pending session ops.
-      FML_TRACE_EVENT0("flutter", "SessionPresent");
+      TRACE_EVENT0("flutter", "SessionPresent");
       session_connection_.Present(*this);
     }
 
-    return true;
+    return flutter::RasterStatus::kSuccess;
   }
 
   FML_DISALLOW_COPY_AND_ASSIGN(ScopedFrame);

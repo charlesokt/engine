@@ -13,12 +13,14 @@ typedef FrameCallback = void Function(Duration duration);
 /// Signature for [Window.onReportTimings].
 ///
 /// {@template dart.ui.TimingsCallback.list}
-/// The callback takes a list of [FrameTiming] because it may not be immediately
-/// triggered after each frame. Instead, Flutter tries to batch frames together
-/// and send all their timings at once to decrease the overhead (as this is
-/// available in the release mode). The list is sorted in ascending order of
-/// time (earliest frame first). The timing of any frame will be sent within
-/// about 1 second even if there are no later frames to batch.
+/// The callback takes a list of [FrameTiming] because it may not be
+/// immediately triggered after each frame. Instead, Flutter tries to batch
+/// frames together and send all their timings at once to decrease the
+/// overhead (as this is available in the release mode). The list is sorted in
+/// ascending order of time (earliest frame first). The timing of any frame
+/// will be sent within about 1 second (100ms if in the profile/debug mode)
+/// even if there are no later frames to batch. The timing of the first frame
+/// will be sent immediately without batching.
 /// {@endtemplate}
 typedef TimingsCallback = void Function(List<FrameTiming> timings);
 
@@ -36,6 +38,9 @@ typedef PlatformMessageResponseCallback = void Function(ByteData data);
 
 /// Signature for [Window.onPlatformMessage].
 typedef PlatformMessageCallback = void Function(String name, ByteData data, PlatformMessageResponseCallback callback);
+
+// Signature for _setNeedsReportTimings.
+typedef _SetNeedsReportTimingsFunc = void Function(bool value);
 
 /// Various important time points in the lifetime of a frame.
 ///
@@ -513,8 +518,15 @@ class Locale {
 
 /// The most basic interface to the host operating system's user interface.
 ///
+/// It exposes the size of the display, the core scheduler API, the input event
+/// callback, the graphics drawing API, and other such core services.
+///
 /// There is a single Window instance in the system, which you can
-/// obtain from the [window] property.
+/// obtain from `WidgetsBinding.instance.window`.
+///
+/// There is also a [window] singleton object in `dart:ui` if `WidgetsBinding`
+/// is unavailable. But we strongly advise to avoid statically referencing it.
+/// See the document of [window] for more details of why it should be avoided.
 ///
 /// ## Insets and Padding
 ///
@@ -558,7 +570,9 @@ class Locale {
 /// [Window.viewPadding] anyway, so there is no need to account for that in the
 /// [Window.padding], which is always safe to use for such calculations.
 class Window {
-  Window._();
+  Window._() {
+    _setNeedsReportTimings = _nativeSetNeedsReportTimings;
+  }
 
   /// The number of device pixels for each logical pixel. This number might not
   /// be a power of two. Indeed, it might not even be an integer. For example,
@@ -913,7 +927,8 @@ class Window {
     _onReportTimingsZone = Zone.current;
   }
 
-  void _setNeedsReportTimings(bool value) native 'Window_setNeedsReportTimings';
+  _SetNeedsReportTimingsFunc _setNeedsReportTimings;
+  void _nativeSetNeedsReportTimings(bool value) native 'Window_setNeedsReportTimings';
 
   /// A callback that is invoked when pointer data is available.
   ///
@@ -1218,7 +1233,19 @@ enum Brightness {
   light,
 }
 
-/// The [Window] singleton. This object exposes the size of the display, the
-/// core scheduler API, the input event callback, the graphics drawing API, and
-/// other such core services.
+/// The [Window] singleton.
+///
+/// Please try to avoid statically referencing this and instead use a
+/// binding for dependency resolution such as `WidgetsBinding.instance.window`.
+///
+/// Static access of this "window" object means that Flutter has few, if any
+/// options to fake or mock the given object in tests. Even in cases where Dart
+/// offers special language constructs to forcefully shadow such properties,
+/// those mechanisms would only be reasonable for tests and they would not be
+/// reasonable for a future of Flutter where we legitimately want to select an
+/// appropriate implementation at runtime.
+///
+/// The only place that `WidgetsBinding.instance.window` is inappropriate is if
+/// a `Window` is required before invoking `runApp()`. In that case, it is
+/// acceptable (though unfortunate) to use this object statically.
 final Window window = Window._();

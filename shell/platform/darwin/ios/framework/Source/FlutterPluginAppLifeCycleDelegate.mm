@@ -99,16 +99,6 @@ static BOOL isPowerOfTwo(NSUInteger x) {
   return YES;
 }
 
-// Returns the key window's rootViewController, if it's a FlutterViewController.
-// Otherwise, returns nil.
-- (FlutterViewController*)rootFlutterViewController {
-  UIViewController* viewController = [UIApplication sharedApplication].keyWindow.rootViewController;
-  if ([viewController isKindOfClass:[FlutterViewController class]]) {
-    return (FlutterViewController*)viewController;
-  }
-  return nil;
-}
-
 - (void)applicationDidEnterBackground:(UIApplication*)application {
 #if FLUTTER_RUNTIME_MODE == FLUTTER_RUNTIME_MODE_DEBUG
   // The following keeps the Flutter session alive when the device screen locks
@@ -228,6 +218,8 @@ static BOOL isPowerOfTwo(NSUInteger x) {
   }
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 - (void)application:(UIApplication*)application
     didReceiveLocalNotification:(UILocalNotification*)notification {
   for (id<FlutterPlugin> plugin in _pluginDelegates) {
@@ -239,6 +231,7 @@ static BOOL isPowerOfTwo(NSUInteger x) {
     }
   }
 }
+#pragma GCC diagnostic pop
 
 - (void)userNotificationCenter:(UNUserNotificationCenter*)center
        willPresentNotification:(UNNotification*)notification

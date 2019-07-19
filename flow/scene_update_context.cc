@@ -193,7 +193,7 @@ scenic::Image* SceneUpdateContext::GenerateImageIfNeeded(
 std::vector<
     std::unique_ptr<flutter::SceneUpdateContext::SurfaceProducerSurface>>
 SceneUpdateContext::ExecutePaintTasks(CompositorContext::ScopedFrame& frame) {
-  FML_TRACE_EVENT0("flutter", "SceneUpdateContext::ExecutePaintTasks");
+  TRACE_EVENT0("flutter", "SceneUpdateContext::ExecutePaintTasks");
   std::vector<std::unique_ptr<SurfaceProducerSurface>> surfaces_to_submit;
   for (auto& task : paint_tasks_) {
     FML_DCHECK(task.surface);
@@ -299,12 +299,18 @@ SceneUpdateContext::Frame::Frame(SceneUpdateContext& context,
       color_(color),
       paint_bounds_(SkRect::MakeEmpty()),
       layer_(layer) {
+  if (depth > -1 && world_elevation > depth) {
+    // TODO(mklim): Deal with bounds overflow more elegantly. We'd like to be
+    // able to have developers specify the behavior here to alternatives besides
+    // clamping, like normalization on some arbitrary curve.
+
+    // Clamp the local z coordinate at our max bound. Take into account the
+    // parent z position here to fix clamping in cases where the child is
+    // overflowing because of its parents.
+    const float parent_elevation = world_elevation - local_elevation;
+    local_elevation = depth - parent_elevation;
+  }
   if (local_elevation != 0.0) {
-    if (depth > -1 && world_elevation >= depth) {
-      // TODO(mklim): Deal with bounds overflow correctly.
-      FML_LOG(ERROR) << "Elevation " << world_elevation << " is outside of "
-                     << depth;
-    }
     entity_node().SetTranslation(0.f, 0.f, -local_elevation);
   }
 }

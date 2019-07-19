@@ -26,15 +26,17 @@ void LayerTree::RecordBuildTime(fml::TimePoint start) {
 
 void LayerTree::Preroll(CompositorContext::ScopedFrame& frame,
                         bool ignore_raster_cache) {
-  FML_TRACE_EVENT0("flutter", "LayerTree::Preroll");
+  TRACE_EVENT0("flutter", "LayerTree::Preroll");
   SkColorSpace* color_space =
       frame.canvas() ? frame.canvas()->imageInfo().colorSpace() : nullptr;
   frame.context().raster_cache().SetCheckboardCacheImages(
       checkerboard_raster_cache_images_);
+  MutatorsStack stack;
   PrerollContext context = {
       ignore_raster_cache ? nullptr : &frame.context().raster_cache(),
       frame.gr_context(),
       frame.view_embedder(),
+      stack,
       color_space,
       kGiantRect,
       frame.context().raster_time(),
@@ -48,7 +50,7 @@ void LayerTree::Preroll(CompositorContext::ScopedFrame& frame,
 #if defined(OS_FUCHSIA)
 void LayerTree::UpdateScene(SceneUpdateContext& context,
                             scenic::ContainerNode& container) {
-  FML_TRACE_EVENT0("flutter", "LayerTree::UpdateScene");
+  TRACE_EVENT0("flutter", "LayerTree::UpdateScene");
   const auto& metrics = context.metrics();
   SceneUpdateContext::Transform transform(context,                  // context
                                           1.0f / metrics->scale_x,  // X
@@ -72,7 +74,7 @@ void LayerTree::UpdateScene(SceneUpdateContext& context,
 
 void LayerTree::Paint(CompositorContext::ScopedFrame& frame,
                       bool ignore_raster_cache) const {
-  FML_TRACE_EVENT0("flutter", "LayerTree::Paint");
+  TRACE_EVENT0("flutter", "LayerTree::Paint");
   SkISize canvas_size = frame.canvas()->getBaseLayerSize();
   SkNWayCanvas internal_nodes_canvas(canvas_size.width(), canvas_size.height());
   internal_nodes_canvas.addCanvas(frame.canvas());
@@ -99,7 +101,7 @@ void LayerTree::Paint(CompositorContext::ScopedFrame& frame,
 }
 
 sk_sp<SkPicture> LayerTree::Flatten(const SkRect& bounds) {
-  FML_TRACE_EVENT0("flutter", "LayerTree::Flatten");
+  TRACE_EVENT0("flutter", "LayerTree::Flatten");
 
   SkPictureRecorder recorder;
   auto* canvas = recorder.beginRecording(bounds);
@@ -108,6 +110,7 @@ sk_sp<SkPicture> LayerTree::Flatten(const SkRect& bounds) {
     return nullptr;
   }
 
+  MutatorsStack unused_stack;
   const Stopwatch unused_stopwatch;
   TextureRegistry unused_texture_registry;
   SkMatrix root_surface_transformation;
@@ -118,6 +121,7 @@ sk_sp<SkPicture> LayerTree::Flatten(const SkRect& bounds) {
       nullptr,                  // raster_cache (don't consult the cache)
       nullptr,                  // gr_context  (used for the raster cache)
       nullptr,                  // external view embedder
+      unused_stack,             // mutator stack
       nullptr,                  // SkColorSpace* dst_color_space
       kGiantRect,               // SkRect cull_rect
       unused_stopwatch,         // frame time (dont care)
