@@ -48,6 +48,58 @@ class InputConnectionAdaptor extends BaseInputConnection {
         mImm = (InputMethodManager) view.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
     }
 
+    private void updateEditingStateWithComposingText(CharSequence composedWord) {
+        if (composedWord == null) {
+            updateEditingState();
+            return;
+        }
+
+        int selectionStart = Selection.getSelectionStart(mEditable);
+        int selectionEnd = Selection.getSelectionEnd(mEditable);
+        
+        int composingStart = BaseInputConnection.getComposingSpanStart(mEditable);
+        int composingEnd = BaseInputConnection.getComposingSpanEnd(mEditable);
+        
+        String editableStr = mEditable.toString();
+        
+        int indexWordBoundary = 0;
+        for (int i = selectionStart-1; i > 0; --i) {
+            if (editableStr.charAt(i) == ' ') {
+                indexWordBoundary = i+1;
+                break;
+            }
+        }
+                
+        if (composingStart < 0 && composedWord != null) {
+            composingStart = composedWord.length();
+        }
+        if (composingEnd < 0) {
+            composingEnd = selectionStart - composingStart;
+        }
+        
+        if (composedWord.length() == 0) {
+            //do nothing, user may have done auto-complete, in which case the editable already did the replacement
+        }
+        else {
+            mEditable.replace(indexWordBoundary, selectionStart, composedWord); //manually correct the word that's being edited
+        }
+        
+        composingEnd = mEditable.toString().length();
+        
+        mImm.updateSelection(mFlutterView,
+                             selectionStart, selectionEnd,
+                             composingStart, composingEnd);
+                     
+        textInputChannel.updateEditingState(
+            mClient,
+            mEditable.toString(),
+            selectionStart,
+            selectionEnd,
+            composingStart,
+            composingEnd
+        );
+    }
+    
     // Send the current state of the editable to Flutter.
     private void updateEditingState() {
         // If the IME is in the middle of a batch edit, then wait until it completes.
@@ -124,7 +176,7 @@ class InputConnectionAdaptor extends BaseInputConnection {
         } else {
             result = super.setComposingText(text, newCursorPosition);
         }
-        updateEditingState();
+        updateEditingStateWithComposingText(text);
         return result;
     }
 
