@@ -10,7 +10,23 @@
 #if defined(OS_FUCHSIA)
 #if !defined(FUCHSIA_SDK)
 
+// Forward to the system tracing mechanism on Fuchsia.
+
 #include <trace/event.h>
+
+// TODO(DNO-448): This is disabled because the Fuchsia counter id json parsing
+// only handles ints whereas this can produce ints or strings.
+#define FML_TRACE_COUNTER(a, b, c, args...)
+#define FML_TRACE_EVENT(a, b, args...) TRACE_DURATION(a, b)
+
+#define TRACE_EVENT0(a, b) TRACE_DURATION(a, b)
+#define TRACE_EVENT1(a, b, c, d) TRACE_DURATION(a, b, c, d)
+#define TRACE_EVENT2(a, b, c, d, e, f) TRACE_DURATION(a, b, c, d, e, f)
+#define TRACE_EVENT_ASYNC_BEGIN0(a, b, c) TRACE_ASYNC_BEGIN(a, b, c)
+#define TRACE_EVENT_ASYNC_END0(a, b, c) TRACE_ASYNC_END(a, b, c)
+#define TRACE_EVENT_ASYNC_BEGIN1(a, b, c, d, e) TRACE_ASYNC_BEGIN(a, b, c, d, e)
+#define TRACE_EVENT_ASYNC_END1(a, b, c, d, e) TRACE_ASYNC_END(a, b, c, d, e)
+#define TRACE_EVENT_INSTANT0(a, b) TRACE_INSTANT(a, b, TRACE_SCOPE_THREAD)
 
 #endif  //  !defined(FUCHSIA_SDK)
 #endif  //  defined(OS_FUCHSIA)
@@ -25,6 +41,9 @@
 #include "flutter/fml/time/time_point.h"
 #include "third_party/dart/runtime/include/dart_tools_api.h"
 
+#if !defined(OS_FUCHSIA) || defined(FUCHSIA_SDK)
+#ifndef TRACE_EVENT_HIDE_MACROS
+
 #define __FML__TOKEN_CAT__(x, y) x##y
 #define __FML__TOKEN_CAT__2(x, y) __FML__TOKEN_CAT__(x, y)
 #define __FML__AUTO_TRACE_END(name)                                  \
@@ -33,6 +52,8 @@
 
 // This macro has the FML_ prefix so that it does not collide with the macros
 // from trace/event.h on Fuchsia.
+//
+// TODO(chinmaygarde): All macros here should have the FML prefix.
 #define FML_TRACE_COUNTER(category_group, name, counter_id, arg1, ...)         \
   ::fml::tracing::TraceCounter((category_group), (name), (counter_id), (arg1), \
                                __VA_ARGS__);
@@ -41,47 +62,49 @@
   ::fml::tracing::TraceEvent((category_group), (name), __VA_ARGS__); \
   __FML__AUTO_TRACE_END(name)
 
-#define FML_TRACE_EVENT0(category_group, name)       \
+#define TRACE_EVENT0(category_group, name)           \
   ::fml::tracing::TraceEvent0(category_group, name); \
   __FML__AUTO_TRACE_END(name)
 
-#define FML_TRACE_EVENT1(category_group, name, arg1_name, arg1_val)       \
+#define TRACE_EVENT1(category_group, name, arg1_name, arg1_val)           \
   ::fml::tracing::TraceEvent1(category_group, name, arg1_name, arg1_val); \
   __FML__AUTO_TRACE_END(name)
 
-#define FML_TRACE_EVENT2(category_group, name, arg1_name, arg1_val, arg2_name, \
-                         arg2_val)                                             \
-  ::fml::tracing::TraceEvent2(category_group, name, arg1_name, arg1_val,       \
-                              arg2_name, arg2_val);                            \
+#define TRACE_EVENT2(category_group, name, arg1_name, arg1_val, arg2_name, \
+                     arg2_val)                                             \
+  ::fml::tracing::TraceEvent2(category_group, name, arg1_name, arg1_val,   \
+                              arg2_name, arg2_val);                        \
   __FML__AUTO_TRACE_END(name)
 
-#define FML_TRACE_EVENT_ASYNC_BEGIN0(category_group, name, id) \
+#define TRACE_EVENT_ASYNC_BEGIN0(category_group, name, id) \
   ::fml::tracing::TraceEventAsyncBegin0(category_group, name, id);
 
-#define FML_TRACE_EVENT_ASYNC_END0(category_group, name, id) \
+#define TRACE_EVENT_ASYNC_END0(category_group, name, id) \
   ::fml::tracing::TraceEventAsyncEnd0(category_group, name, id);
 
-#define FML_TRACE_EVENT_ASYNC_BEGIN1(category_group, name, id, arg1_name,    \
-                                     arg1_val)                               \
+#define TRACE_EVENT_ASYNC_BEGIN1(category_group, name, id, arg1_name,        \
+                                 arg1_val)                                   \
   ::fml::tracing::TraceEventAsyncBegin1(category_group, name, id, arg1_name, \
                                         arg1_val);
 
-#define FML_TRACE_EVENT_ASYNC_END1(category_group, name, id, arg1_name,    \
-                                   arg1_val)                               \
-  ::fml::tracing::TraceEventAsyncEnd1(category_group, name, id, arg1_name, \
+#define TRACE_EVENT_ASYNC_END1(category_group, name, id, arg1_name, arg1_val) \
+  ::fml::tracing::TraceEventAsyncEnd1(category_group, name, id, arg1_name,    \
                                       arg1_val);
 
-#define FML_TRACE_EVENT_INSTANT0(category_group, name) \
+#define TRACE_EVENT_INSTANT0(category_group, name) \
   ::fml::tracing::TraceEventInstant0(category_group, name);
 
-#define FML_TRACE_FLOW_BEGIN(category, name, id) \
+#define TRACE_FLOW_BEGIN(category, name, id) \
   ::fml::tracing::TraceEventFlowBegin0(category, name, id);
 
-#define FML_TRACE_FLOW_STEP(category, name, id) \
+#define TRACE_FLOW_STEP(category, name, id) \
   ::fml::tracing::TraceEventFlowStep0(category, name, id);
 
-#define FML_TRACE_FLOW_END(category, name, id) \
+#define TRACE_FLOW_END(category, name, id) \
   ::fml::tracing::TraceEventFlowEnd0(category, name, id);
+
+#endif  // TRACE_EVENT_HIDE_MACROS
+#endif  // !defined(OS_FUCHSIA) || defined(FUCHSIA_SDK)
 
 namespace fml {
 namespace tracing {
@@ -219,6 +242,41 @@ class ScopedInstantEnd {
   const char* label_;
 
   FML_DISALLOW_COPY_AND_ASSIGN(ScopedInstantEnd);
+};
+
+// A move-only utility object that creates a new flow with a unique ID and
+// automatically ends it when it goes out of scope. When tracing using multiple
+// overlapping flows, it often gets hard to make sure to end the flow
+// (especially with early returns), or, end/step on the wrong flow. This
+// leads to corrupted or missing traces in the UI.
+class TraceFlow {
+ public:
+  TraceFlow(const char* label) : label_(label), nonce_(TraceNonce()) {
+    TraceEventFlowBegin0("flutter", label_, nonce_);
+  }
+
+  ~TraceFlow() { End(label_); }
+
+  TraceFlow(TraceFlow&& other) : label_(other.label_), nonce_(other.nonce_) {
+    other.nonce_ = 0;
+  }
+
+  void Step(const char* label) const {
+    TraceEventFlowStep0("flutter", label, nonce_);
+  }
+
+  void End(const char* label = nullptr) {
+    if (nonce_ != 0) {
+      TraceEventFlowEnd0("flutter", label == nullptr ? label_ : label, nonce_);
+      nonce_ = 0;
+    }
+  }
+
+ private:
+  const char* label_;
+  size_t nonce_;
+
+  FML_DISALLOW_COPY_AND_ASSIGN(TraceFlow);
 };
 
 }  // namespace tracing

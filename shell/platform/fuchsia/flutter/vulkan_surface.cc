@@ -26,7 +26,7 @@ constexpr SkColorType kSkiaColorType = kBGRA_8888_SkColorType;
 bool CreateVulkanImage(vulkan::VulkanProvider& vulkan_provider,
                        const SkISize& size,
                        VulkanImage* out_vulkan_image) {
-  FML_TRACE_EVENT0("flutter", "CreateVulkanImage");
+  TRACE_EVENT0("flutter", "CreateVulkanImage");
 
   FML_DCHECK(!size.isEmpty());
   FML_DCHECK(out_vulkan_image != nullptr);
@@ -36,9 +36,14 @@ bool CreateVulkanImage(vulkan::VulkanProvider& vulkan_provider,
   // garnet/public/lib/escher/util/image_utils.cc) or else the different vulkan
   // devices may interpret the bytes differently.
   // TODO(SCN-1369): Use API to coordinate this with scenic.
+  out_vulkan_image->vk_external_image_create_info = {
+      .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+      .pNext = nullptr,
+      .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_TEMP_ZIRCON_VMO_BIT_FUCHSIA,
+  };
   out_vulkan_image->vk_image_create_info = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-      .pNext = nullptr,
+      .pNext = &out_vulkan_image->vk_external_image_create_info,
       .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT,
       .imageType = VK_IMAGE_TYPE_2D,
       .format = VK_FORMAT_B8G8R8A8_UNORM,
@@ -244,7 +249,7 @@ bool VulkanSurface::AllocateDeviceMemory(sk_sp<GrContext> context,
   };
 
   {
-    FML_TRACE_EVENT0("flutter", "vkAllocateMemory");
+    TRACE_EVENT0("flutter", "vkAllocateMemory");
     VkDeviceMemory vk_memory = VK_NULL_HANDLE;
     if (VK_CALL_LOG_ERROR(vulkan_provider_.vk().AllocateMemory(
             vulkan_provider_.vk_device(), &alloc_info, NULL, &vk_memory)) !=

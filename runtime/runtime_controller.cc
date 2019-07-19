@@ -20,8 +20,8 @@ RuntimeController::RuntimeController(
     fml::RefPtr<const DartSnapshot> p_isolate_snapshot,
     fml::RefPtr<const DartSnapshot> p_shared_snapshot,
     TaskRunners p_task_runners,
-    fml::WeakPtr<SnapshotDelegate> p_snapshot_delegate,
     fml::WeakPtr<IOManager> p_io_manager,
+    fml::WeakPtr<ImageDecoder> p_image_decoder,
     std::string p_advisory_script_uri,
     std::string p_advisory_script_entrypoint,
     std::function<void(int64_t)> p_idle_notification_callback,
@@ -32,8 +32,8 @@ RuntimeController::RuntimeController(
                         std::move(p_isolate_snapshot),
                         std::move(p_shared_snapshot),
                         std::move(p_task_runners),
-                        std::move(p_snapshot_delegate),
                         std::move(p_io_manager),
+                        std::move(p_image_decoder),
                         std::move(p_advisory_script_uri),
                         std::move(p_advisory_script_entrypoint),
                         p_idle_notification_callback,
@@ -47,8 +47,8 @@ RuntimeController::RuntimeController(
     fml::RefPtr<const DartSnapshot> p_isolate_snapshot,
     fml::RefPtr<const DartSnapshot> p_shared_snapshot,
     TaskRunners p_task_runners,
-    fml::WeakPtr<SnapshotDelegate> p_snapshot_delegate,
     fml::WeakPtr<IOManager> p_io_manager,
+    fml::WeakPtr<ImageDecoder> p_image_decoder,
     std::string p_advisory_script_uri,
     std::string p_advisory_script_entrypoint,
     std::function<void(int64_t)> idle_notification_callback,
@@ -60,8 +60,8 @@ RuntimeController::RuntimeController(
       isolate_snapshot_(std::move(p_isolate_snapshot)),
       shared_snapshot_(std::move(p_shared_snapshot)),
       task_runners_(p_task_runners),
-      snapshot_delegate_(p_snapshot_delegate),
       io_manager_(p_io_manager),
+      image_decoder_(p_image_decoder),
       advisory_script_uri_(p_advisory_script_uri),
       advisory_script_entrypoint_(p_advisory_script_entrypoint),
       idle_notification_callback_(idle_notification_callback),
@@ -77,8 +77,8 @@ RuntimeController::RuntimeController(
                                      shared_snapshot_,                 //
                                      task_runners_,                    //
                                      std::make_unique<Window>(this),   //
-                                     snapshot_delegate_,               //
                                      io_manager_,                      //
+                                     image_decoder_,                   //
                                      p_advisory_script_uri,            //
                                      p_advisory_script_entrypoint,     //
                                      nullptr,                          //
@@ -137,8 +137,8 @@ std::unique_ptr<RuntimeController> RuntimeController::Clone() const {
       isolate_snapshot_,            //
       shared_snapshot_,             //
       task_runners_,                //
-      snapshot_delegate_,           //
       io_manager_,                  //
+      image_decoder_,               //
       advisory_script_uri_,         //
       advisory_script_entrypoint_,  //
       idle_notification_callback_,  //
@@ -251,7 +251,7 @@ bool RuntimeController::NotifyIdle(int64_t deadline) {
 
   // Idle notifications being in isolate scope are part of the contract.
   if (idle_notification_callback_) {
-    FML_TRACE_EVENT0("flutter", "EmbedderIdleNotification");
+    TRACE_EVENT0("flutter", "EmbedderIdleNotification");
     idle_notification_callback_(deadline);
   }
   return true;
@@ -260,8 +260,8 @@ bool RuntimeController::NotifyIdle(int64_t deadline) {
 bool RuntimeController::DispatchPlatformMessage(
     fml::RefPtr<PlatformMessage> message) {
   if (auto* window = GetWindowIfAvailable()) {
-    FML_TRACE_EVENT1("flutter", "RuntimeController::DispatchPlatformMessage",
-                     "mode", "basic");
+    TRACE_EVENT1("flutter", "RuntimeController::DispatchPlatformMessage",
+                 "mode", "basic");
     window->DispatchPlatformMessage(std::move(message));
     return true;
   }
@@ -271,8 +271,8 @@ bool RuntimeController::DispatchPlatformMessage(
 bool RuntimeController::DispatchPointerDataPacket(
     const PointerDataPacket& packet) {
   if (auto* window = GetWindowIfAvailable()) {
-    FML_TRACE_EVENT1("flutter", "RuntimeController::DispatchPointerDataPacket",
-                     "mode", "basic");
+    TRACE_EVENT1("flutter", "RuntimeController::DispatchPointerDataPacket",
+                 "mode", "basic");
     window->DispatchPointerDataPacket(packet);
     return true;
   }
@@ -282,8 +282,8 @@ bool RuntimeController::DispatchPointerDataPacket(
 bool RuntimeController::DispatchSemanticsAction(int32_t id,
                                                 SemanticsAction action,
                                                 std::vector<uint8_t> args) {
-  FML_TRACE_EVENT1("flutter", "RuntimeController::DispatchSemanticsAction",
-                   "mode", "basic");
+  TRACE_EVENT1("flutter", "RuntimeController::DispatchSemanticsAction", "mode",
+               "basic");
   if (auto* window = GetWindowIfAvailable()) {
     window->DispatchSemanticsAction(id, action, std::move(args));
     return true;

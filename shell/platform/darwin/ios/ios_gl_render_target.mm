@@ -62,6 +62,7 @@ IOSGLRenderTarget::IOSGLRenderTarget(fml::scoped_nsobject<CAEAGLLayer> layer,
 }
 
 IOSGLRenderTarget::~IOSGLRenderTarget() {
+  EAGLContext* context = EAGLContext.currentContext;
   [EAGLContext setCurrentContext:context_];
   FML_DCHECK(glGetError() == GL_NO_ERROR);
 
@@ -70,6 +71,7 @@ IOSGLRenderTarget::~IOSGLRenderTarget() {
   glDeleteRenderbuffers(1, &colorbuffer_);
 
   FML_DCHECK(glGetError() == GL_NO_ERROR);
+  [EAGLContext setCurrentContext:context];
 }
 
 bool IOSGLRenderTarget::IsValid() const {
@@ -98,7 +100,7 @@ bool IOSGLRenderTarget::UpdateStorageSizeIfNecessary() {
     // Nothing to since the stoage size is already consistent with the layer.
     return true;
   }
-  FML_TRACE_EVENT_INSTANT0("flutter", "IOSGLRenderTarget::UpdateStorageSizeIfNecessary");
+  TRACE_EVENT_INSTANT0("flutter", "IOSGLRenderTarget::UpdateStorageSizeIfNecessary");
   FML_DLOG(INFO) << "Updating render buffer storage size.";
 
   FML_DCHECK(glGetError() == GL_NO_ERROR);

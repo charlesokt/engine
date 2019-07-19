@@ -18,7 +18,8 @@ EmbedderEngine::EmbedderEngine(
     EmbedderExternalTextureGL::ExternalTextureCallback
         external_texture_callback)
     : thread_host_(std::move(thread_host)),
-      shell_(Shell::Create(std::move(task_runners),
+      task_runners_(task_runners),
+      shell_(Shell::Create(task_runners_,
                            std::move(settings),
                            on_create_platform_view,
                            on_create_rasterizer)),
@@ -34,6 +35,10 @@ EmbedderEngine::~EmbedderEngine() = default;
 
 bool EmbedderEngine::IsValid() const {
   return is_valid_;
+}
+
+const TaskRunners& EmbedderEngine::GetTaskRunners() const {
+  return task_runners_;
 }
 
 bool EmbedderEngine::NotifyCreated() {
@@ -94,8 +99,8 @@ bool EmbedderEngine::DispatchPointerDataPacket(
     return false;
   }
 
-  FML_TRACE_EVENT0("flutter", "EmbedderEngine::DispatchPointerDataPacket");
-  FML_TRACE_FLOW_BEGIN("flutter", "PointerEvent", next_pointer_flow_id_);
+  TRACE_EVENT0("flutter", "EmbedderEngine::DispatchPointerDataPacket");
+  TRACE_FLOW_BEGIN("flutter", "PointerEvent", next_pointer_flow_id_);
 
   shell_->GetTaskRunners().GetUITaskRunner()->PostTask(fml::MakeCopyable(
       [engine = shell_->GetEngine(), packet = std::move(packet),
